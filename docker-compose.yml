@@ -1,0 +1,134 @@
+version: '3.5'
+
+volumes:
+  db:
+
+services:
+  traefik:
+    image: traefik:1.7
+    command: --docker.domain=${PRIMARY_DOMAIN} --acme.email=${LETS_ENCRYPT_EMAIL}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    expose:
+      - 8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.toml:/traefik.toml
+      - ./acme.json:/acme.json
+    labels:
+      traefik.enable: true
+      traefik.port: 8080
+      traefik.backend: "traefik"
+      traefik.frontend.rule: "Host:traefik.${PRIMARY_DOMAIN}"
+      traefik.frontend.auth.basic.users: "${TRAEFIK_AUTH}"
+    networks:
+      traefik:
+        aliases:
+          - traefik.${PRIMARY_DOMAIN}
+
+  bitwarden:
+    image: bitwardenrs/server
+    restart: unless-stopped
+    volumes:
+      - ${DIR_BITWARDEN}:/data
+    environment:
+      WEBSOCKET_ENABLED: "true"
+      SIGNUPS_ALLOWED: "false" # set to false to disable sign up
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.web.frontend.rule: "Host:bw.${PRIMARY_DOMAIN}"
+      traefik.web.port: 80
+      traefik.hub.frontend.rule: "Host:bw.${PRIMARY_DOMAIN};Path:/notifications/hub"
+      traefik.hub.port: 3012
+      traefik.hub.protocol: ws
+    networks:
+      - traefik
+
+  nextcloud_db:
+    image: mariadb
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    restart: always
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - internal
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  nextcloud:
+    image: nextcloud
+    volumes:
+      - ${DIR_NEXTCLOUD}:/var/www/html
+      - ${DIR_NEXTCLOUD_ALT}:/data
+    restart: unless-stopped
+    links:
+      - nextcloud_db
+    labels:
+      - "traefik.backend=nextcloud"
+      - "traefik.docker.network=traefik"
+      - "traefik.frontend.rule=Host:nextcloud.${PRIMARY_DOMAIN}"
+      - "traefik.enable=true"
+      - "traefik.port=80"
+    networks:
+      - traefik
+      - internal
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+
+  jellyfin:
+    image: linuxserver/jellyfin
+    container_name: jellyfin
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=Europe/London
+    volumes:
+      - ${DIR_JELLYFIN}:/config
+      - ${DIR_MOVIES}:/movies
+      - ${DIR_SERIES}:/series
+      - ${DIR_DOWNLOADS}:/downloads
+    devices:
+      - /dev/dri:/dev/dri # GPU decoding acceleration
+    labels:
+      - "traefik.docker.network=traefik"
+      - "traefik.frontend.rule=Host:jelly.${PRIMARY_DOMAIN}"
+      - "traefik.enable=true"
+    networks:
+      - traefik
+
+  transmission:
+    image: linuxserver/transmission
+    container_name: transmission
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=Europe/London
+      - USER=${TRANSMISSION_USER}
+      - PASS=${TRANSMISSION_PASSWORD}
+    volumes:
+      - ${DIR_TRANSMISSION}:/config
+      - ${DIR_DOWNLOADS}:/downloads
+    labels:
+      - "traefik.docker.network=traefik"
+      - "traefik.frontend.rule=Host:torrent.${PRIMARY_DOMAIN}"
+      - "traefik.enable=true"
+    networks:
+      - traefik
+    ports:
+      - 51413:51413
+      - 51413:51413/udp
+
+networks:
+  traefik:
+    external: true
+  internal:
+    external: false
