@@ -6,6 +6,7 @@ volumes:
 services:
   traefik:
     image: traefik:1.7
+    container_name: traefik
     command: --docker.domain=${PRIMARY_DOMAIN} --acme.email=${LETS_ENCRYPT_EMAIL}
     restart: unless-stopped
     ports:
@@ -30,6 +31,7 @@ services:
 
   bitwarden:
     image: bitwardenrs/server
+    container_name: bitwarden
     restart: unless-stopped
     volumes:
       - ${DIR_BITWARDEN}:/data
@@ -49,6 +51,7 @@ services:
 
   nextcloud_db:
     image: mariadb
+    container_name: nextcloud-mariadb
     command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     restart: always
     volumes:
@@ -62,7 +65,8 @@ services:
       - MYSQL_USER=nextcloud
 
   nextcloud:
-    image: nextcloud
+    image: nextcloudq
+    container_name: nextcloud
     volumes:
       - ${DIR_NEXTCLOUD}:/var/www/html
       - ${DIR_NEXTCLOUD_ALT}:/data
@@ -81,6 +85,20 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
+
+  cron:
+    image: rcdailey/nextcloud-cronjob
+    container_name: nextcloud-cron
+    restart: always
+    network_mode: none
+    depends_on:
+    - nextcloud
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - /etc/localtime:/etc/localtime:ro
+    environment:
+    - NEXTCLOUD_CONTAINER_NAME=nextcloud
+    # - NEXTCLOUD_PROJECT_NAME=traefik
 
   jellyfin:
     image: linuxserver/jellyfin
