@@ -65,11 +65,12 @@ services:
       - MYSQL_USER=nextcloud
 
   nextcloud:
-    image: nextcloudq
+    image: nextcloud
     container_name: nextcloud
     volumes:
       - ${DIR_NEXTCLOUD}:/var/www/html
       - ${DIR_NEXTCLOUD_ALT}:/data
+      - ${DIR_NEXTCLOUD_ALT_2}:/downloads
     restart: unless-stopped
     links:
       - nextcloud_db
