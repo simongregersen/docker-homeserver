@@ -5,7 +5,7 @@ volumes:
 
 services:
   traefik:
-    image: traefik:1.7
+    image: traefik:1.7.26
     container_name: traefik
     command: --docker.domain=${PRIMARY_DOMAIN} --acme.email=${LETS_ENCRYPT_EMAIL}
     restart: unless-stopped
@@ -65,15 +65,15 @@ services:
       - MYSQL_USER=nextcloud
 
   nextcloud:
-    image: nextcloud
+    image: nextcloud:21
     container_name: nextcloud
     volumes:
       - ${DIR_NEXTCLOUD}:/var/www/html
       - ${DIR_NEXTCLOUD_ALT}:/data
       - ${DIR_NEXTCLOUD_ALT_2}:/downloads
     restart: unless-stopped
-    links:
-      - nextcloud_db
+    # links:
+    #   - nextcloud_db
     labels:
       - "traefik.backend=nextcloud"
       - "traefik.docker.network=traefik"
@@ -104,7 +104,7 @@ services:
   jellyfin:
     image: linuxserver/jellyfin
     container_name: jellyfin
-    restart: unless-stopped
+    restart: unless-stopped    
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -120,6 +120,9 @@ services:
       - "traefik.docker.network=traefik"
       - "traefik.frontend.rule=Host:jelly.${PRIMARY_DOMAIN}"
       - "traefik.enable=true"
+      - "traefik.frontend.headers.SSLRedirect=true"
+      - "traefik.frontend.headers.STSSeconds=315360000"
+      - "traefik.frontend.headers.forceSTSHeader=true"      
     networks:
       - traefik
 

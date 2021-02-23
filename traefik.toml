@@ -1,6 +1,7 @@
 defaultEntryPoints = ["http", "https"]
 
-logLevel = "INFO"
+logLevel = "ERROR"
+# logLevel = "INFO"
 
 [entryPoints]
   [entryPoints.http]
